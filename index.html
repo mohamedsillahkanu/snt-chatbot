@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chatbot Search on HTML</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Fuse.js for fuzzy search -->
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; padding-bottom: 100px; }
+
+    #source-content {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+    }
+
+    /* Chatbot UI */
+    #chatbot {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 320px;
+      height: 420px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      font-family: sans-serif;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+
+    #chat-header {
+      background: #007bff;
+      color: white;
+      padding: 10px;
+      font-weight: bold;
+      text-align: center;
+      border-radius: 10px 10px 0 0;
+    }
+
+    #chat-log {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      font-size: 14px;
+    }
+
+    #chat-input {
+      border: none;
+      border-top: 1px solid #ccc;
+      padding: 10px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .user-msg { text-align: right; color: #333; margin: 5px 0; }
+    .bot-msg { text-align: left; color: #007bff; margin: 5px 0; }
+  </style>
+</head>
+<body>
+
+  <!-- 🔍 Embedded Document to Search -->
+  <div id="source-content" style="display: block;">
+    <h1>View Shapefile Data – Code Library for SNT</h1>
+    <p>This page demonstrates how to view shapefile data using Leaflet.js and coordinate mapping.</p>
+    <h2>Coordinate Reference</h2>
+    <p>Coordinates must be in WGS84 format (EPSG:4326) to work correctly with mapping tools.</p>
+    <h2>Code Example</h2>
+    <pre><code>
+      var map = L.map('map').setView([8.484, -13.229], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    </code></pre>
+    <h2>Upload and Visualize</h2>
+    <p>Use a GeoJSON file to visualize administrative boundaries or health facility catchment areas.</p>
+  </div>
+
+  <!-- 🤖 Chatbot UI -->
+  <div id="chatbot">
+    <div id="chat-header">Ask the Page</div>
+    <div id="chat-log"></div>
+    <input type="text" id="chat-input" placeholder="Ask something...">
+  </div>
+
+  <!-- 💬 Chatbot Script -->
+  <script>
+    const input = document.getElementById("chat-input");
+    const log = document.getElementById("chat-log");
+    let fuse = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // Index all searchable blocks
+      const elements = [...document.querySelectorAll("#source-content h1, h2, h3, p, li, code, pre")];
+      elements.forEach((el, i) => el.setAttribute("data-block-id", `block-${i}`));
+
+      const data = elements.map(el => ({
+        id: el.getAttribute("data-block-id"),
+        text: el.innerText,
+        el: el
+      }));
+
+      fuse = new Fuse(data, {
+        keys: ['text'],
+        includeScore: true,
+        threshold: 0.4,
+        ignoreLocation: true,
+      });
+    });
+
+    input.addEventListener("keypress", function (e) {
+      if (e.key === "Enter" && input.value.trim() !== "") {
+        const query = input.value.trim();
+        appendMessage(query, "user-msg");
+        searchAndRespond(query.toLowerCase());
+        input.value = "";
+      }
+    });
+
+    function appendMessage(text, className, isHTML = false) {
+      const div = document.createElement("div");
+      div.className = className;
+      div.innerHTML = isHTML ? text : escapeHTML(text);
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>"']/g, m =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
+    }
+
+    function searchAndRespond(query) {
+      if (!fuse) {
+        appendMessage("Search is still loading.", "bot-msg");
+        return;
+      }
+
+      const results = fuse.search(query).slice(0, 3);
+      clearHighlights();
+
+      if (results.length === 0) {
+        appendMessage("No relevant matches found.", "bot-msg");
+        return;
+      }
+
+      appendMessage("Here’s what I found:", "bot-msg");
+
+      results.forEach(result => {
+        const snippet = result.item.text.slice(0, 300);
+        const html = `<div style="cursor:pointer;" onclick="scrollToBlock('${result.item.id}')">${escapeHTML(snippet)}</div>`;
+        appendMessage(html, "bot-msg", true);
+        highlightText(result.item.el, query);
+      });
+    }
+
+    function highlightText(el, query) {
+      const regex = new RegExp(`(${query})`, "gi");
+      el.innerHTML = el.innerText.replace(regex, '<mark style="background:yellow;">$1</mark>');
+    }
+
+    function clearHighlights() {
+      document.querySelectorAll('#source-content [data-block-id]').forEach(el => {
+        el.innerHTML = el.textContent;
+        el.style.border = '';
+      });
+    }
+
+    window.scrollToBlock = function (id) {
+      const target = document.querySelector(`[data-block-id="${id}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        target.style.border = "2px solid orange";
+        setTimeout(() => target.style.border = "", 2000);
+      }
+    };
+  </script>
+</body>
+</html>
